@@ -1,0 +1,12 @@
+name: my-mcp-server
+runtime: python3.11
+
+# Change this to the path of your server file
+entrypoint: server.py
+
+dependencies:
+  - pandas
+  - numpy
+  - requests
+  - fastmcp
+  - python-dotenv
