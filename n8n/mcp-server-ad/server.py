@@ -228,35 +228,35 @@ def detect_anomalies_core(
     except Exception as e:
         return {"error": f"An error occurred: {str(e)}"}
 
-# NEW (FIXED) MCP TOOL
 @mcp.tool()
 def detect_anomalies(
     data: str,
     time_column: str,
     value_column: str,
     aggregation_level: Optional[str] = None,
-    methods: List[str] = ["moving_average", "standard_deviation", "iqr"]
+    methods: str = '["moving_average", "standard_deviation", "iqr"]' # <-- MUST be str
 ) -> Dict[str, Any]:
     """
     MCP tool wrapper for anomaly detection.
     
     Args:
-        data: JSON string containing the raw time series data (list of row objects)
-        time_column: Name of the column containing time/datetime values
-        value_column: Column name containing values to analyze for anomalies.
-        aggregation_level: Optional aggregation level (e.g., "product_id")
-        methods: List of methods to use: "moving_average", "standard_deviation", "iqr"
-    
-    Returns:
-        Dictionary containing detected anomalies
+        methods: A JSON string of a list of methods (e.g., '["iqr", "ma"]')
+        ... (other args) ...
     """
-    # Call the core function
+    
+    # Parse the methods string
+    try:
+        methods_list = json.loads(methods)
+    except Exception as e:
+        return {"error": f"Invalid 'methods' parameter. Must be a JSON list string. Error: {str(e)}"}
+
+    # Call the core function with the parsed list
     return detect_anomalies_core(
         data=data,
         time_column=time_column,
         value_column=value_column,
         aggregation_level=aggregation_level,
-        methods=methods
+        methods=methods_list # Pass the parsed list
     )
 
 
