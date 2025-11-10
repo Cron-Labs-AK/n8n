@@ -16,31 +16,23 @@ mcp = FastMCP("Anomaly Detection Server")
 # -----------------------------------------------------
 # PostgreSQL Fetch Helper (ALWAYS used, data param removed)
 # -----------------------------------------------------
-def fetch_table_from_postgres(
-    conn_str: str,
-    table: str,
-    time_column: str,
-    value_column: str,
-    limit: int = 200
-) -> pd.DataFrame:
+conn = psycopg2.connect(
+    host="aws-1-ap-southeast-2.pooler.supabase.com",
+    user="postgres.vwffpsdqynpogykytlvg",
+    password="1Aashutosh$cronlabs",
+    database="postgres",
+    port="5432"  # default PostgreSQL port
+)
 
-    sql = f'SELECT "{time_column}", "{value_column}" FROM {table} LIMIT {int(limit)}'
+#Fetch table names
+df_tables = pd.read_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';", conn)
 
-    conn = psycopg2.connect(conn_str)
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute(sql)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+#Example: specify the tables you want
+tables = ['Tempt']
 
-    if not rows:
-        raise ValueError(f"No data returned from table {table}")
+for table in tables:
+    df = pd.read_sql(f'SELECT * FROM "{table}";', conn)
 
-    df = pd.DataFrame(rows)
-    df[value_column] = pd.to_numeric(df[value_column], errors="coerce")
-    df = df.dropna(subset=[value_column])
-    df[time_column] = pd.to_datetime(df[time_column], errors="coerce")
-    return df.sort_values(time_column)
 
 
 # -----------------------------------------------------

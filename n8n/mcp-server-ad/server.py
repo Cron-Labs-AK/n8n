@@ -8,9 +8,28 @@ import pandas as pd
 import numpy as np
 from typing import Any, Dict, List, Optional, Union
 import json
+import psycopg2
+
 
 # Initialize FastMCP server
 mcp = FastMCP("Anomaly Detection Server")
+
+conn = psycopg2.connect(
+    host="aws-1-ap-southeast-2.pooler.supabase.com",
+    user="postgres.vwffpsdqynpogykytlvg",
+    password="1Aashutosh$cronlabs",
+    database="postgres",
+    port="5432"  # default PostgreSQL port
+)
+
+#Fetch table names
+df_tables = pd.read_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';", conn)
+
+#Example: specify the tables you want
+tables = ['Tempt']
+
+for table in tables:
+    df = pd.read_sql(f'SELECT * FROM "{table}";', conn)
 
 
 def detect_anomalies_moving_average(
@@ -230,19 +249,32 @@ def detect_anomalies_core(
 
 @mcp.tool()
 def detect_anomalies(
-    data: str,
     time_column: str,
     value_column: str,
     aggregation_level: Optional[str] = None,
-    methods: str = '["moving_average", "standard_deviation", "iqr"]' # <-- MUST be str
+    methods: str = '["moving_average", "standard_deviation", "iqr"]'
 ) -> Dict[str, Any]:
     """
     MCP tool wrapper for anomaly detection.
-    
-    Args:
-        methods: A JSON string of a list of methods (e.g., '["iqr", "ma"]')
-        ... (other args) ...
+    This tool IGNORES any data from n8n and uses the
+    globally loaded 'Tempt' table (df).
     """
+    
+    global df  # Access the global 'df' (your 'Tempt' table data)
+
+    # --- FIX: Convert the DataFrame to a JSON string ---
+    try:
+        if 'df' not in globals() or df.empty:
+            return {"error": "Server-side 'Tempt' table (df) is not loaded or is empty."}
+            
+        # Convert the global DataFrame to the JSON string that
+        # 'detect_anomalies_core' expects.
+        data_string = df.to_json(orient='records')
+        
+    except Exception as e:
+        return {"error": f"Failed to convert global df to JSON: {str(e)}"}
+    # --- END FIX ---
+    
     
     # Parse the methods string
     try:
@@ -250,13 +282,13 @@ def detect_anomalies(
     except Exception as e:
         return {"error": f"Invalid 'methods' parameter. Must be a JSON list string. Error: {str(e)}"}
 
-    # Call the core function with the parsed list
+    # Call the core function, passing the server's data as a string
     return detect_anomalies_core(
-        data=data,
+        data=data_string,  # <-- Pass the new data_string
         time_column=time_column,
         value_column=value_column,
         aggregation_level=aggregation_level,
-        methods=methods_list # Pass the parsed list
+        methods=methods_list
     )
 
 
