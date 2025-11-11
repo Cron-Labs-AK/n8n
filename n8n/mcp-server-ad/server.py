@@ -154,7 +154,7 @@ def detect_anomalies_core(
     time_column: str,
     value_column: str,
     aggregation_level: Optional[str] = None,
-    methods: Optional[List[str]] = None,
+    methods: str = '["moving_average", "standard_deviation", "iqr"]',  # <-- FIX
     window: int = 7,
     threshold: float = 2.0,
     iqr_multiplier: float = 1.5
@@ -163,8 +163,14 @@ def detect_anomalies_core(
     Core function to detect anomalies in time series data.
     """
     try:
-        if methods is None:
-            methods = ["moving_average", "standard_deviation", "iqr"]
+        # --- NEW: Parse the methods string ---
+        try:
+            methods_list = json.loads(methods)
+            if not isinstance(methods_list, list):
+                raise ValueError("Methods parameter must be a JSON list string.")
+        except Exception as e:
+            return {"error": f"Invalid 'methods' parameter. Must be a JSON list string. Error: {str(e)}"}
+        # --- END NEW ---
 
         data_list = json.loads(data)
         df = pd.DataFrame(data_list)
@@ -179,19 +185,20 @@ def detect_anomalies_core(
         anomaly_df = df.copy()
         results = {}
 
-        if "moving_average" in methods:
+        # Use the parsed methods_list
+        if "moving_average" in methods_list:
             anomaly_df = detect_anomalies_moving_average(anomaly_df, value_column, time_column, window, threshold)
             results["moving_average"] = {
                 "anomalies": anomaly_df[anomaly_df['is_anomaly_ma']].to_dict('records')
             }
 
-        if "standard_deviation" in methods:
+        if "standard_deviation" in methods_list:
             anomaly_df = detect_anomalies_standard_deviation(anomaly_df, value_column, time_column, threshold)
             results["standard_deviation"] = {
                 "anomalies": anomaly_df[anomaly_df['is_anomaly_std']].to_dict('records')
             }
 
-        if "iqr" in methods:
+        if "iqr" in methods_list:
             anomaly_df = detect_anomalies_iqr(anomaly_df, value_column, time_column, iqr_multiplier)
             results["iqr"] = {
                 "anomalies": anomaly_df[anomaly_df['is_anomaly_iqr']].to_dict('records')
@@ -206,7 +213,6 @@ def detect_anomalies_core(
 
     except Exception as e:
         return {"error": str(e)}
-
 
 @mcp.tool(
     parameters={
