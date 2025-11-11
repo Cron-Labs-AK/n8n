@@ -212,8 +212,9 @@ def detect_anomalies_core(
 def detect_anomalies(
     time_column: str,
     value_column: str,
-    aggregation_level: Optional[str] = None,
-    methods: str = '["moving_average","standard_deviation","iqr"]'
+    methods: str, 
+    aggregation_level: Optional[str] = None
+    
 ):
     """
     Detect anomalies from the 'tempt' table.
@@ -222,7 +223,7 @@ def detect_anomalies(
         time_column: Name of the timestamp/datetime column in tempt.
         value_column: Name of the numeric column to analyze.
         aggregation_level: Optional column to group by before detection.
-        methods: JSON list of detection methods to apply.
+        methods: list of detection methods to apply. any of ["moving_average","standard_deviation","iqr"]
     """
     try:
         df = load_tempt()
