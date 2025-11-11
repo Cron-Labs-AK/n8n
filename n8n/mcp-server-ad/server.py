@@ -22,14 +22,9 @@ conn = psycopg2.connect(
     port="5432"  # default PostgreSQL port
 )
 
-#Fetch table names
-df_tables = pd.read_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';", conn)
 
-#Example: specify the tables you want
-tables = ['Tempt']
-
-for table in tables:
-    df = pd.read_sql(f'SELECT * FROM "{table}";', conn)
+def load_tempt():
+    return pd.read_sql('SELECT * FROM tempt;', conn)
 
 
 def detect_anomalies_moving_average(
@@ -154,142 +149,98 @@ def detect_anomalies_iqr(
 
 # ... (keep your other functions: detect_anomalies_moving_average, etc.) ...
 
-# NEW (FIXED) CORE FUNCTION
 def detect_anomalies_core(
-    data: str,  # This will be a JSON string of the rows
+    data: str,
     time_column: str,
     value_column: str,
     aggregation_level: Optional[str] = None,
-    methods: List[str] = ["moving_average", "standard_deviation"],
+    methods: Optional[List[str]] = None,
     window: int = 7,
     threshold: float = 2.0,
     iqr_multiplier: float = 1.5
 ) -> Dict[str, Any]:
     """
     Core function to detect anomalies in time series data.
-    
-    Args:
-        data: JSON string containing time series data (e.g., '[{"col1": "a"}, {"col1": "b"}]')
-        time_column: Name of the column containing time/datetime values
-        value_column: Column name containing values to analyze for anomalies.
-        ... (rest of args are the same)
     """
     try:
-        # Parse the JSON string data into a list of objects
+        if methods is None:
+            methods = ["moving_average", "standard_deviation", "iqr"]
+
         data_list = json.loads(data)
-        
-        # Create the DataFrame
         df = pd.DataFrame(data_list)
-        
-        # --- From here, your original code's logic will now work ---
-        
-        # Convert time column to datetime if needed
-        if time_column in df.columns:
-            df[time_column] = pd.to_datetime(df[time_column], errors='coerce')
-        else:
+
+        if time_column not in df.columns:
             return {"error": f"Time column '{time_column}' not found in data."}
-        
+
         if value_column not in df.columns:
             return {"error": f"Value column '{value_column}' not found in data."}
-            
-        # Handle aggregation if specified
-        if aggregation_level and aggregation_level in df.columns:
-            # (Your aggregation logic here)
-            pass
 
-        # Apply anomaly detection methods
-        results = {}
+        df[time_column] = pd.to_datetime(df[time_column], errors='coerce')
         anomaly_df = df.copy()
-        
+        results = {}
+
         if "moving_average" in methods:
-            anomaly_df = detect_anomalies_moving_average(
-                anomaly_df, value_column, time_column, window, threshold
-            )
+            anomaly_df = detect_anomalies_moving_average(anomaly_df, value_column, time_column, window, threshold)
             results["moving_average"] = {
-                "anomalies": anomaly_df[anomaly_df['is_anomaly_ma']].to_dict('records'),
-                "total_anomalies": int(anomaly_df['is_anomaly_ma'].sum()),
+                "anomalies": anomaly_df[anomaly_df['is_anomaly_ma']].to_dict('records')
             }
-        
+
         if "standard_deviation" in methods:
-            # (Your standard_deviation logic here)
-            anomaly_df = detect_anomalies_standard_deviation(
-                anomaly_df, value_column, time_column, threshold
-            )
+            anomaly_df = detect_anomalies_standard_deviation(anomaly_df, value_column, time_column, threshold)
             results["standard_deviation"] = {
-                "anomalies": anomaly_df[anomaly_df['is_anomaly_std']].to_dict('records'),
-                "total_anomalies": int(anomaly_df['is_anomaly_std'].sum()),
+                "anomalies": anomaly_df[anomaly_df['is_anomaly_std']].to_dict('records')
             }
-        
+
         if "iqr" in methods:
-            # (Your iqr logic here)
-            anomaly_df = detect_anomalies_iqr(
-                anomaly_df, value_column, time_column, iqr_multiplier
-            )
+            anomaly_df = detect_anomalies_iqr(anomaly_df, value_column, time_column, iqr_multiplier)
             results["iqr"] = {
-                "anomalies": anomaly_df[anomaly_df['is_anomaly_iqr']].to_dict('records'),
-                "total_anomalies": int(anomaly_df['is_anomaly_iqr'].sum()),
+                "anomalies": anomaly_df[anomaly_df['is_anomaly_iqr']].to_dict('records')
             }
-        
-        # Prepare summary
-        summary = {
+
+        return {
             "total_records": len(anomaly_df),
             "time_column": time_column,
             "value_column": value_column,
             "results": results
         }
-        
-        # (Your combined anomaly logic here)
-        
-        return summary
-        
-    except json.JSONDecodeError as e:
-        return {"error": f"Invalid JSON format for data: {str(e)}"}
-    except Exception as e:
-        return {"error": f"An error occurred: {str(e)}"}
 
-@mcp.tool()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool(
+    parameters={
+        "time_column": "Name of the timestamp column in the 'tempt' table.",
+        "value_column": "Name of the numeric column to analyze.",
+        "methods": "JSON list of detection methods, e.g. [\"moving_average\",\"standard_deviation\",\"iqr\"]."
+    }
+)
 def detect_anomalies(
     time_column: str,
     value_column: str,
     aggregation_level: Optional[str] = None,
-    methods: str = '["moving_average", "standard_deviation", "iqr"]'
-) -> Dict[str, Any]:
-    """
-    MCP tool wrapper for anomaly detection.
-    This tool IGNORES any data from n8n and uses the
-    globally loaded 'Tempt' table (df).
-    """
-    
-    global df  # Access the global 'df' (your 'Tempt' table data)
+    methods: str = '["moving_average","standard_deviation","iqr"]'
+):
+    try:
+        df = load_tempt()
 
-    # --- FIX: Convert the DataFrame to a JSON string ---
-    try:
-        if 'df' not in globals() or df.empty:
-            return {"error": "Server-side 'Tempt' table (df) is not loaded or is empty."}
-            
-        # Convert the global DataFrame to the JSON string that
-        # 'detect_anomalies_core' expects.
-        data_string = df.to_json(orient='records')
-        
-    except Exception as e:
-        return {"error": f"Failed to convert global df to JSON: {str(e)}"}
-    # --- END FIX ---
-    
-    
-    # Parse the methods string
-    try:
+        if df.empty:
+            return {"error": "'tempt' table is empty. Refresh it before running anomaly detection."}
+
+        data_string = df.to_json(orient="records")
         methods_list = json.loads(methods)
-    except Exception as e:
-        return {"error": f"Invalid 'methods' parameter. Must be a JSON list string. Error: {str(e)}"}
 
-    # Call the core function, passing the server's data as a string
-    return detect_anomalies_core(
-        data=data_string,  # <-- Pass the new data_string
-        time_column=time_column,
-        value_column=value_column,
-        aggregation_level=aggregation_level,
-        methods=methods_list
-    )
+        return detect_anomalies_core(
+            data=data_string,
+            time_column=time_column,
+            value_column=value_column,
+            aggregation_level=aggregation_level,
+            methods=methods_list
+        )
+
+    except Exception as e:
+        return {"error": str(e)}
+
 
 
 if __name__ == "__main__":
