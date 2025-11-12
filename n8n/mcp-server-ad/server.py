@@ -213,8 +213,7 @@ def detect_anomalies(
     time_column: str,
     value_column: str,
     methods: str, 
-    aggregation_level: str ,
-    extra_param: str
+    aggregation_level: str
     
 ):
     """
