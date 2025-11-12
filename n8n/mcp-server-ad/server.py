@@ -211,10 +211,11 @@ def detect_anomalies_core(
 @mcp.tool()
 def detect_anomalies(
     time_column: str,
-    value_column: str,
-    methods: str, 
+    value_column: str, 
     aggregation_level: str,
-    toolCallId: str
+    toolCallId: str,
+    methods: str = '["moving_average","standard_deviation","iqr"]'
+    
 ):
     """
     Detect anomalies from the 'tempt' table.
@@ -233,6 +234,8 @@ def detect_anomalies(
 
         data_string = df.to_json(orient="records")
         methods_list = json.loads(methods)
+        
+        _ = toolCallId  # to avoid unused variable warning
 
         return detect_anomalies_core(
             data=data_string,
