@@ -209,27 +209,23 @@ def detect_anomalies_core(
 
 
 @mcp.tool()
-def detect_anomalies(
-    time_column: str,
-    value_column: str,
-    methods: str, 
-    aggregation_level: str 
-    
-):
+def detect_anomalies(params: dict):
     """
-    Detect anomalies from the 'tempt' table.
-
-    Args:
-        time_column: Name of the timestamp/datetime column in tempt.
-        value_column: Name of the numeric column to analyze.
-        aggregation_level: Optional column to group by before detection.
-        methods: list of detection methods to apply. any of ["moving_average","standard_deviation","iqr"]
+    params should include:
+    - time_column (str)
+    - value_column (str)
+    - methods (str)
+    - aggregation_level (str, optional)
     """
     try:
-        df = load_tempt()
+        time_column = params["time_column"]
+        value_column = params["value_column"]
+        methods = params["methods"]
+        aggregation_level = params.get("aggregation_level")
 
+        df = load_tempt()
         if df.empty:
-            return {"error": "'tempt' table is empty. Refresh it before running anomaly detection."}
+            return {"error": "'tempt' table is empty."}
 
         data_string = df.to_json(orient="records")
         methods_list = json.loads(methods)
